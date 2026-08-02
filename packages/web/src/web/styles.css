@@ -1,0 +1,167 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ---- Fonts ---- */
+@font-face {
+  font-family: "Clash Display";
+  src: url("/fonts/ClashDisplay-Variable.woff2") format("woff2");
+  font-weight: 400 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "General Sans";
+  src: url("/fonts/GeneralSans-Variable.woff2") format("woff2");
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+@theme inline {
+  --font-display: "Clash Display", system-ui, sans-serif;
+  --font-sans: "General Sans", system-ui, sans-serif;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-elevated: var(--elevated);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-card-hover: var(--card-hover);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-gold: var(--gold);
+  --color-gold-soft: var(--gold-soft);
+  --color-grad-from: var(--grad-from);
+  --color-grad-via: var(--grad-via);
+  --color-grad-to: var(--grad-to);
+}
+
+:root {
+  --radius: 0.9rem;
+
+  /* Framewave is dark-first. */
+  --background: #08080a;
+  --elevated: #0f0f13;
+  --foreground: #f5f3ef;
+  --card: #141418;
+  --card-hover: #1b1b21;
+  --card-foreground: #f5f3ef;
+  --popover: #141418;
+  --popover-foreground: #f5f3ef;
+  --primary: #e7b45a;
+  --primary-foreground: #14100a;
+  --secondary: #1b1b21;
+  --secondary-foreground: #f5f3ef;
+  --muted: #1b1b21;
+  --muted-foreground: #8a8a94;
+  --accent: #1b1b21;
+  --accent-foreground: #f5f3ef;
+  --destructive: #ef4444;
+  --success: #34d399;
+  --border: #232329;
+  --input: #232329;
+  --ring: #e7b45a;
+
+  --gold: #e7b45a;
+  --gold-soft: #c9963f;
+  --grad-from: #ff7a45;
+  --grad-via: #ff3d77;
+  --grad-to: #8b5cf6;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+  ::selection {
+    background: var(--gold);
+    color: #14100a;
+  }
+}
+
+@layer utilities {
+  .gradient-text {
+    background: linear-gradient(120deg, var(--grad-from), var(--grad-via), var(--grad-to));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .gradient-bg {
+    background: linear-gradient(120deg, var(--grad-from), var(--grad-via), var(--grad-to));
+  }
+  .gold-text {
+    background: linear-gradient(120deg, #f4cd82, var(--gold), var(--gold-soft));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  /* Ornate gold frame for showcased media */
+  .art-frame {
+    position: relative;
+    border: 1px solid color-mix(in srgb, var(--gold) 55%, transparent);
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.6),
+      inset 0 0 22px rgba(0, 0, 0, 0.55),
+      0 24px 60px -24px rgba(231, 180, 90, 0.28);
+    background: linear-gradient(180deg, #101014, #0a0a0c);
+  }
+  .grain {
+    background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.035) 1px, transparent 0);
+    background-size: 4px 4px;
+  }
+  .glow-gold {
+    box-shadow: 0 10px 50px -12px rgba(231, 180, 90, 0.45);
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2a31;
+  border-radius: 999px;
+  border: 2px solid var(--background);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a44;
+}
