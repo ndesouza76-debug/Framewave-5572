@@ -10,7 +10,9 @@ export interface GenerateVideoInput {
   negativePrompt?: string | null;
   aspectRatio: string; // "16:9" | "9:16"
   durationSeconds: number;
-  resolution: string; // "720p" | "1080p"
+  resolution: string; // "720p" | "1080p" | "4k"
+  /** Provider model id to run. Defaults to the provider's own default. */
+  model?: string;
   seed?: number | null;
   /** Raw bytes of a source image for image-to-video mode. */
   image?: { bytes: Uint8Array; mimeType: string } | null;

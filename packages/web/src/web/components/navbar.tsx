@@ -1,15 +1,17 @@
 import { Link, useLocation } from "wouter";
-import { useCustomer } from "autumn-js/react";
-import { Sparkles, Wand2, Clock, LayoutGrid, Gem, LogOut, Menu, X } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Sparkles, Wand2, Clock, LayoutGrid, Gem, Gift, LogOut, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { Logo } from "./logo";
 import { useAuth } from "../hooks/use-auth";
 import { authClient } from "../lib/auth";
+import { creditsBalanceOptions } from "../queries/credits";
 
 const NAV = [
   { to: "/studio", label: "Studio", icon: Wand2 },
   { to: "/history", label: "History", icon: Clock },
   { to: "/gallery", label: "Gallery", icon: LayoutGrid },
+  { to: "/rewards", label: "Rewards", icon: Gift },
   { to: "/pricing", label: "Pricing", icon: Gem },
 ];
 
@@ -125,17 +127,18 @@ export function Navbar() {
 }
 
 function CreditPill() {
-  const { data: customer } = useCustomer();
-  const bal = customer?.balances?.credits;
-  const remaining = bal?.remaining;
+  const { data: balance } = useQuery(creditsBalanceOptions());
+  const total = balance?.total;
   return (
     <Link
-      to="/pricing"
+      to="/rewards"
       className="flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold/10 px-3 py-1.5 text-sm text-gold transition hover:bg-gold/15"
-      title="Credits remaining"
+      title="Credits available — plan allowance plus bonus credits"
     >
       <Gem className="h-3.5 w-3.5" />
-      <span className="font-semibold tabular-nums">{remaining ?? "—"}</span>
+      <span className="font-semibold tabular-nums">
+        {total == null ? "—" : total.toLocaleString()}
+      </span>
     </Link>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { useCustomer } from "autumn-js/react";
+import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import {
   Wand2,
@@ -30,24 +30,31 @@ import { uploadFile } from "../lib/upload";
 import { FramedMedia } from "../components/framed-media";
 import {
   ASPECT_RATIOS,
-  RESOLUTIONS,
   DURATIONS,
   STYLE_PRESETS,
   CAMERA_MOTIONS,
   CATEGORIES,
-  creditCost,
 } from "../lib/constants";
+import {
+  TIERS,
+  creditCost,
+  resolutionsForTier,
+  type ModelTier,
+  type Resolution,
+} from "../lib/pricing";
+import { creditsBalanceOptions } from "../queries/credits";
 
 export default function StudioPage() {
   const [, navigate] = useLocation();
   const { isAuthenticated, isPending } = useAuth();
-  const { data: customer } = useCustomer();
+  const { data: creditBalance } = useQuery(creditsBalanceOptions());
 
   const [mode, setMode] = useState<"text" | "image">("text");
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
   const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16">("16:9");
-  const [resolution, setResolution] = useState<"720p" | "1080p">("720p");
+  const [tier, setTier] = useState<ModelTier>("standard");
+  const [resolution, setResolution] = useState<Resolution>("720p");
   const [duration, setDuration] = useState<number>(8);
   const [style, setStyle] = useState<string | null>(null);
   const [camera, setCamera] = useState<string | null>(null);
@@ -69,8 +76,14 @@ export default function StudioPage() {
     if (!isPending && !isAuthenticated) navigate("/login");
   }, [isAuthenticated, isPending, navigate]);
 
-  const cost = creditCost(duration, resolution);
-  const balance = customer?.balances?.credits?.remaining ?? 0;
+  // Keep the resolution legal whenever the tier changes (Draft has no 4K).
+  const allowedResolutions = resolutionsForTier(tier);
+  useEffect(() => {
+    if (!allowedResolutions.includes(resolution)) setResolution(allowedResolutions[0]!);
+  }, [allowedResolutions, resolution]);
+
+  const cost = creditCost(tier, resolution, duration) ?? 0;
+  const balance = creditBalance?.total ?? 0;
   const canAfford = balance >= cost;
 
   async function onPickImage(file: File | undefined) {
@@ -116,6 +129,7 @@ export default function StudioPage() {
         aspectRatio,
         durationSeconds: duration,
         resolution,
+        tier,
         stylePreset: style ?? undefined,
         cameraMotion: camera ?? undefined,
         sourceImageKey: mode === "image" ? imageKey ?? undefined : undefined,
@@ -243,6 +257,41 @@ export default function StudioPage() {
             ))}
           </Group>
 
+          {/* quality tier */}
+          <div>
+            <span className="mb-2 block text-sm font-medium">Quality</span>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {TIERS.map((t) => {
+                const active = tier === t.value;
+                const perClip = creditCost(t.value, resolutionsForTier(t.value)[0]!, duration);
+                return (
+                  <button
+                    key={t.value}
+                    onClick={() => setTier(t.value)}
+                    className={`rounded-xl border p-3 text-left transition ${
+                      active
+                        ? "border-gold/60 bg-gold/10"
+                        : "border-border bg-background hover:border-gold/30"
+                    }`}
+                  >
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold">{t.label}</span>
+                      {t.badge && (
+                        <span className="rounded-full bg-white/5 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                          {t.badge}
+                        </span>
+                      )}
+                    </span>
+                    <span className="mt-1 block text-xs text-muted-foreground">{t.tagline}</span>
+                    <span className="mt-1.5 block text-xs font-medium text-gold tabular-nums">
+                      from {perClip} cr
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* settings */}
           <div className="grid grid-cols-2 gap-4">
             <Select label="Aspect ratio">
@@ -253,9 +302,9 @@ export default function StudioPage() {
               ))}
             </Select>
             <Select label="Resolution">
-              {RESOLUTIONS.map((r) => (
-                <Segment key={r.value} active={resolution === r.value} onClick={() => setResolution(r.value)}>
-                  {r.value}
+              {allowedResolutions.map((r) => (
+                <Segment key={r} active={resolution === r} onClick={() => setResolution(r)}>
+                  {r === "4k" ? "4K" : r}
                 </Segment>
               ))}
             </Select>
@@ -303,7 +352,7 @@ export default function StudioPage() {
             <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <Gem className="h-4 w-4 text-gold" />
               <span className="font-semibold text-foreground tabular-nums">{cost}</span> credits
-              <span className="opacity-60">· {balance} left</span>
+              <span className="opacity-60">· {balance.toLocaleString()} left</span>
             </div>
             <button
               onClick={onGenerate}
@@ -317,8 +366,12 @@ export default function StudioPage() {
           {!canAfford && (
             <p className="text-center text-xs text-destructive">
               Not enough credits.{" "}
+              <button onClick={() => navigate("/rewards")} className="underline">
+                Claim daily credits
+              </button>{" "}
+              or{" "}
               <button onClick={() => navigate("/pricing")} className="underline">
-                Upgrade
+                upgrade
               </button>
             </p>
           )}

@@ -25,6 +25,7 @@ export const ASPECT_RATIOS = [
 export const RESOLUTIONS = [
   { value: "720p", label: "720p", hint: "Standard" },
   { value: "1080p", label: "1080p", hint: "Full HD" },
+  { value: "4k", label: "4K", hint: "Ultra HD" },
 ] as const;
 
 export const DURATIONS = [4, 6, 8] as const;
@@ -64,30 +65,4 @@ export const CATEGORIES: { value: string; label: string; icon: LucideIcon }[] = 
   { value: "gaming", label: "Gaming", icon: Gamepad2 },
 ];
 
-/** Mirror of api/lib/credits.ts — keep in sync. */
-export function creditCost(durationSeconds: number, resolution: string): number {
-  const perSecond = resolution === "1080p" ? 3 : 2;
-  return Math.max(perSecond, Math.round(durationSeconds * perSecond));
-}
 
-export const PLAN_ORDER = ["free", "starter", "pro", "studio"] as const;
-
-/** Marketing copy for the pricing section (limits mirror autumn.config.ts). */
-export const PLAN_COPY: Record<string, { blurb: string; features: string[] }> = {
-  free: {
-    blurb: "Kick the tires and make your first clips.",
-    features: ["30 credits / month", "720p output", "Public gallery access", "Standard queue"],
-  },
-  starter: {
-    blurb: "For creators shipping regular content.",
-    features: ["300 credits / month", "720p & 1080p", "Prompt enhancement", "Download & share"],
-  },
-  pro: {
-    blurb: "Serious volume for pros and small teams.",
-    features: ["1,200 credits / month", "1080p priority", "Image-to-video", "Priority queue"],
-  },
-  studio: {
-    blurb: "Maximum firepower for studios.",
-    features: ["4,000 credits / month", "Everything in Pro", "Highest priority", "Early features"],
-  },
-};

@@ -1,39 +1,58 @@
-# Framewave build
+# Framewave — pricing & credits rebuild
 
-## Decisions
-- Managed stack (Bun/Vite/React/Hono/Drizzle/Expo). Not Next/Supabase/Stripe.
-- Auth: Better Auth + Runable managed Google + email/password. DONE
-- Payments/credits: Autumn. Plans free/starter/pro/studio pushed. DONE
-- Video: Google Veo via @google/genai, GEMINI_API_KEY. Modular provider layer.
-- Storage: Tigris (S3). credit cost: 720p=2/s, 1080p=3/s.
+## Locked economics (user-approved 2026-08-05)
+- Grid approved as-is: Free $0/100 · Spark $9/400 · Creator $19/900 · Studio $49/2,500 · Scale $99/5,500. Monthly, no annual lock-in.
+- Margin floor: 60%. Conflict with the 44-56% grid resolved by lowering the credit burn rate,
+  NOT by changing prices. 1 credit === $0.0072 of Veo compute (was $0.01).
+  Cheapest credit sold = Scale $99/5500 = $0.018/cr -> exactly 60% margin. Everything else is above.
+- Cinematic (Veo 3.1 Standard) available to EVERYONE including Free.
+- Daily claim: Free +5/day, Paid +15/day.
+- PAYG: packs 500/$12, 1200/$25, 3000/$55 + single-credit top-up at $0.03/credit. Never expire.
 
-## Progress
-- [x] app_init, deps, design.md
-- [x] backend: auth, schema, middleware, autumn, s3, video/veo, credits, routes (upload/ai/generations/gallery), index mount
-- [x] web infra: auth client, api bearer, main handleRedirect, provider (Autumn+Toaster), constants, queries, styles, fonts
-- [x] components: logo, framed-media, navbar
-- [x] web pages: index (landing), login, studio, history, gallery, video detail, pricing
-- [x] app.tsx routes + navbar layout
-- [ ] web build + typecheck + lint  <-- ACTIVE
-- [ ] mobile: auth, tabs (studio/history/gallery/account), login
-- [ ] deliver web + mobile
+## Credit cost table (COGS/credit <= $0.0072 everywhere)
+| Tier | Model | 720p | 1080p | 4k |
+|---|---|---|---|---|
+| Draft | veo-3.1-lite-generate-preview | 7 cr/s | 12 cr/s | n/a |
+| Standard | veo-3.1-fast-generate-preview | 14 cr/s | 17 cr/s | 42 cr/s |
+| Cinematic | veo-3.1-generate-preview | 56 cr/s | 56 cr/s | 84 cr/s |
 
-## Notes
-- Veo model: veo-3.0-fast-generate-001
-- Generation runs async background; client polls generations.get
-- creditCost client mirror is positional (dur, res); server is object form — same numbers.
-- customer.balances.credits.remaining for credit balance display.
+8s clip: Draft 720p 56 · Draft 1080p 96 · Standard 720p 112 · Standard 1080p 136 · Cinematic 448.
 
-## SESSION UPDATE (resume)
-- Lint: CLEAN (fixed a11y issues in studio/gallery/login/framed-media + mobile ErrorBoundary re-export already existed).
-- Web + desktop build: PASS.
-- NOW: building mobile app (auth managed+email/pw, theme rebrand, tabs studio/history/gallery/account, queries, login).
+## Honesty constraint
+Cannot beat Higgsfield on raw credit counts (different units) or on Veo-Standard per-video cost
+without selling below cost. Compare only $/month, videos-per-dollar on like tiers, and the things
+they genuinely lack: a real free tier, no annual lock-in, non-expiring PAYG credits.
 
-## SESSION UPDATE (final verification)
-- Fixed: autumn check response shape (`check.allowed`, not `check.data.allowed`).
-- Fixed: @aws-sdk/s3-request-presigner pinned to 3.1023.0 to match client-s3 (smithy type clash).
-- Fixed: Veo model default -> veo-3.1-fast-generate-preview (3.0-fast 404s on this key); durationSeconds now passed to Veo config.
-- Added: humanError() mapping for provider errors; error surfaced in web FramedMedia + mobile studio preview.
-- Verified: web+mobile typecheck clean, root lint clean, root build pass, expo export (ios) bundles 4.24MB OK.
-- Verified live: signup, session, autumn customer auto-create (free 30 credits), gallery.list, generations.create/get/retry/toggleFavorite/delete, ai.enhancePrompt, upload.presign + real PUT to Tigris (200).
-- BLOCKER (external): Veo returns 429 RESOURCE_EXHAUSTED — GEMINI_API_KEY has no Veo quota (needs paid tier). Pipeline verified up to provider call.
+## Steps
+- [x] autumn.config.ts rewritten: free=100, 4 paid plans, 3 packs, 1 metered top-up
+- [x] `bunx atmn push --yes` -> push complete; fresh customer verified granted 100 / remaining 100
+- [x] BUG FOUND+FIXED: Autumn price.amount is DOLLARS not cents. Old config said 1200 = $1,200/mo.
+      Pricing page divides by 100 -> must stop dividing.
+- [ ] DB: credit_ledger, credit_events, daily_claims, mission_claims, referral_codes, referrals
+- [ ] api/lib/credits.ts -> tier table; mirror to web lib + mobile constants
+- [ ] api/lib/balance.ts -> effective balance + atomic idempotent spend (ledger first, then Autumn)
+- [ ] routes/credits.ts -> balance, claimDaily, missions, referral
+- [ ] generations.ts -> gate + spend via new path, model tier field
+- [ ] UI web: pricing page w/ comparison, rewards page, studio tier selector + live cost
+- [ ] UI mobile: mirror
+- [ ] e2e test proving server-side decrement + no double claim
+- [ ] lint / build / typecheck, restart dev servers (web 4200, mobile 4300), deliver
+
+## Known blockers
+- GEMINI_API_KEY has no Veo quota (429 RESOURCE_EXHAUSTED). No generation has completed end-to-end.
+  Credit spend path must therefore be proven by a direct test harness, not by a real generation.
+- Existing free customers sit on an older Autumn plan version -> need backfill to 100.
+
+## Session close-out (Aug 8)
+- Autumn plan-version backfill SOLVED: the cancel param is `cancel_immediately: true`
+  (NOT `cancel: "immediately"`, which the API rejects with a misleading message).
+  Flow: POST /v1/cancel {customer_id, product_id, cancel_immediately:true} -> POST /v1/attach {customer_id, product_id}.
+  Both legacy users (WSDEZeMD..., 6Lmew2x4...) re-checked: granted=100, remaining=100, plan_id=free.
+- Mobile account.tsx now reads server balance (total/plan/bonus) via creditsBalanceOptions + links to Rewards.
+  Also fixed `plan.price.amount / 100` -> `amount` (Autumn prices are dollars).
+- Assets: og-image.png rebuilt at 1200x630 from the brand mark (was 6.5MB template placeholder);
+  mobile icon/adaptive-icon/splash-icon/favicon generated from icon-512.png.
+- Verified: root lint 0/0, web typecheck+build, mobile typecheck, verify-credits.ts 32 passed / 0 failed.
+- STILL BLOCKED: Veo 429 RESOURCE_EXHAUSTED — GEMINI_API_KEY has no paid Veo quota, so no real
+  generation has completed end-to-end. Credit spend path proven only via the e2e harness.
+- Left in DB: 4 throwaway verify_*@framewave.test users (no psql in sandbox; harmless).

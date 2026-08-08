@@ -13,7 +13,7 @@ import {
 import { useGallery } from "../queries/gallery";
 import { FramedMedia } from "../components/framed-media";
 import { useAuth } from "../hooks/use-auth";
-import { PLAN_COPY, PLAN_ORDER } from "../lib/constants";
+import { PLANS, PLAN_ORDER } from "../lib/pricing";
 
 const MODELS = ["Veo 3", "Cinematic", "Photoreal", "Anime", "3D", "Claymation", "Cyberpunk", "Noir"];
 
@@ -185,26 +185,32 @@ export default function IndexPage() {
           <h2 className="text-3xl font-semibold md:text-4xl">Simple, credit-based pricing</h2>
           <p className="mt-2 text-muted-foreground">Start free. Upgrade when you need more firepower.</p>
         </div>
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {PLAN_ORDER.map((id) => {
-            const copy = PLAN_COPY[id];
-            const featured = id === "pro";
+            const plan = PLANS[id];
             return (
               <div
                 key={id}
                 className={`relative rounded-2xl border p-6 ${
-                  featured ? "border-gold/50 bg-card glow-gold" : "border-border bg-card/50"
+                  plan.featured ? "border-gold/50 bg-card glow-gold" : "border-border bg-card/50"
                 }`}
               >
-                {featured && (
+                {plan.featured && (
                   <span className="absolute -top-2.5 left-6 rounded-full gradient-bg px-3 py-0.5 text-[11px] font-semibold text-white">
                     Most popular
                   </span>
                 )}
-                <h3 className="text-lg font-semibold capitalize">{id}</h3>
-                <p className="mt-1.5 min-h-[40px] text-sm text-muted-foreground">{copy.blurb}</p>
+                <h3 className="text-lg font-semibold">{plan.name}</h3>
+                <p className="mt-2 flex items-baseline gap-1">
+                  <span className="text-3xl font-semibold tabular-nums">${plan.priceMonthly}</span>
+                  <span className="text-sm text-muted-foreground">/mo</span>
+                </p>
+                <p className="mt-1 text-sm font-medium text-gold tabular-nums">
+                  {plan.credits.toLocaleString()} credits
+                </p>
+                <p className="mt-1.5 min-h-[40px] text-sm text-muted-foreground">{plan.blurb}</p>
                 <ul className="mt-4 space-y-2">
-                  {copy.features.map((f) => (
+                  {plan.features.map((f) => (
                     <li key={f} className="flex items-start gap-2 text-sm">
                       <Check className="mt-0.5 h-4 w-4 shrink-0 text-gold" /> {f}
                     </li>

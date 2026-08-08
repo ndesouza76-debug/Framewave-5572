@@ -1,20 +1,18 @@
 import { z } from "zod";
 import { and, desc, eq } from "drizzle-orm";
 import { ORPCError } from "@orpc/server";
-import { Autumn } from "autumn-js";
 import { authed } from "../middleware/auth";
 import { db } from "../database";
 import * as schema from "../database/schema";
 import type { Generation } from "../database/schema";
 import { getVideoProvider } from "../lib/video";
 import { getObjectBytes, putObject, signGetUrl, deleteObject } from "../lib/s3";
-import { creditCost } from "../lib/credits";
-
-const autumn = new Autumn();
+import { creditCost, isTierSupported, MODEL_TIERS, RESOLUTIONS, TIER_MODEL } from "../lib/credits";
+import { canAfford, getBalance, spendCredits } from "../lib/balance";
+import { awardMission, qualifyReferral } from "./credits";
 
 const MODE = ["text", "image"] as const;
 const ASPECT = ["16:9", "9:16"] as const;
-const RESOLUTION = ["720p", "1080p"] as const;
 
 const createInput = z.object({
   mode: z.enum(MODE).default("text"),
@@ -22,7 +20,8 @@ const createInput = z.object({
   negativePrompt: z.string().max(1000).optional(),
   aspectRatio: z.enum(ASPECT).default("16:9"),
   durationSeconds: z.number().int().min(3).max(8).default(8),
-  resolution: z.enum(RESOLUTION).default("720p"),
+  resolution: z.enum(RESOLUTIONS).default("720p"),
+  tier: z.enum(MODEL_TIERS).default("standard"),
   stylePreset: z.string().max(60).optional(),
   cameraMotion: z.string().max(60).optional(),
   seed: z.number().int().optional(),
@@ -50,8 +49,8 @@ async function setProgress(id: string, progress: number) {
 
 /**
  * Runs a generation end-to-end in the background (not awaited by the request).
- * Updates status/progress as it goes, uploads the result to Tigris, then tracks
- * the credit spend in Autumn on success.
+ * Updates status/progress as it goes, uploads the result to Tigris, then charges
+ * credits on success. A failed generation is never charged.
  */
 async function runGeneration(id: string) {
   const [g] = await db.select().from(schema.generations).where(eq(schema.generations.id, id));
@@ -76,6 +75,7 @@ async function runGeneration(id: string) {
       aspectRatio: g.aspectRatio,
       durationSeconds: g.durationSeconds,
       resolution: g.resolution,
+      model: g.model,
       seed: g.seed,
       image,
       onProgress: (p) => void setProgress(id, p),
@@ -89,10 +89,18 @@ async function runGeneration(id: string) {
       .set({ status: "completed", progress: 100, videoKey, completedAt: new Date() })
       .where(eq(schema.generations.id, id));
 
-    // Charge credits only on success.
-    await autumn
-      .track({ customerId: g.userId, featureId: "credits", value: g.creditsCost })
-      .catch((e) => console.error("[autumn] track failed:", e));
+    // Charge credits only on success. Keyed on the generation id, so a retry
+    // of this function can never double-charge the same video.
+    await spendCredits({
+      userId: g.userId,
+      cost: g.creditsCost,
+      source: "generation",
+      idempotencyKey: `generation:${g.id}`,
+    }).catch((e) => console.error("[credits] spend failed:", e));
+
+    // Loyalty side effects — both are idempotent.
+    await awardMission(g.userId, "first_generation").catch(() => {});
+    await qualifyReferral(g.userId).catch(() => {});
   } catch (err) {
     console.error("[generation] failed:", id, err);
     await db
@@ -123,14 +131,25 @@ function humanError(err: unknown) {
 export const generations = {
   /** Start a new generation. Checks credit balance, then runs in the background. */
   create: authed.input(createInput).handler(async ({ input, context }) => {
-    const cost = creditCost({ durationSeconds: input.durationSeconds, resolution: input.resolution });
+    if (!isTierSupported(input.tier, input.resolution)) {
+      throw new ORPCError("BAD_REQUEST", {
+        message: `${input.tier} doesn't support ${input.resolution}.`,
+      });
+    }
 
-    const check = await autumn
-      .check({ customerId: context.user.id, featureId: "credits", requiredBalance: cost })
-      .catch(() => null);
-    if (check && check.allowed === false) {
+    const cost = creditCost({
+      tier: input.tier,
+      resolution: input.resolution,
+      durationSeconds: input.durationSeconds,
+    });
+
+    // Server-side gate. The client's cost preview is advisory only — this is
+    // the number that counts, and it is computed from the request, not sent
+    // by the client.
+    const balance = await getBalance(context.user.id);
+    if (balance.total < cost) {
       throw new ORPCError("PAYMENT_REQUIRED", {
-        message: "Not enough credits. Upgrade your plan to keep generating.",
+        message: `This costs ${cost} credits but you have ${balance.total}. Claim your daily credits, top up, or pick a cheaper tier.`,
       });
     }
 
@@ -150,6 +169,7 @@ export const generations = {
         aspectRatio: input.aspectRatio,
         durationSeconds: input.durationSeconds,
         resolution: input.resolution,
+        tier: input.tier,
         stylePreset: input.stylePreset,
         cameraMotion: input.cameraMotion,
         seed: input.seed,
@@ -159,7 +179,7 @@ export const generations = {
         creditsCost: cost,
         status: "queued",
         provider: "veo",
-        model: getVideoProvider("veo").model,
+        model: TIER_MODEL[input.tier],
       })
       .returning();
 
@@ -175,6 +195,13 @@ export const generations = {
       .where(and(eq(schema.generations.id, input.id), eq(schema.generations.userId, context.user.id)));
     if (!g) throw new ORPCError("NOT_FOUND");
     if (g.status === "processing" || g.status === "queued") return withUrls(g);
+    // A previously failed generation was never charged, so a retry must pass
+    // the balance gate again.
+    if (!(await canAfford(context.user.id, g.creditsCost))) {
+      throw new ORPCError("PAYMENT_REQUIRED", {
+        message: `Not enough credits to retry — this costs ${g.creditsCost}.`,
+      });
+    }
     await db
       .update(schema.generations)
       .set({ status: "queued", progress: 0, error: null })
@@ -247,6 +274,7 @@ export const generations = {
           category: input.category ?? g.category,
         })
         .where(eq(schema.generations.id, g.id));
+      if (next) await awardMission(context.user.id, "publish_gallery").catch(() => {});
       return { isPublic: next };
     }),
 };

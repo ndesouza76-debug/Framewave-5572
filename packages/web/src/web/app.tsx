@@ -9,6 +9,7 @@ import HistoryPage from "./pages/history";
 import GalleryPage from "./pages/gallery";
 import VideoPage from "./pages/video";
 import PricingPage from "./pages/pricing";
+import RewardsPage from "./pages/rewards";
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
             <Route path="/gallery" component={GalleryPage} />
             <Route path="/v/:id" component={VideoPage} />
             <Route path="/pricing" component={PricingPage} />
+            <Route path="/rewards" component={RewardsPage} />
             <Route>
               <div className="grid min-h-[60vh] place-items-center px-5 text-center">
                 <div>

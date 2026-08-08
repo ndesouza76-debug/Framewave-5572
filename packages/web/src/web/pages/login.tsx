@@ -69,7 +69,7 @@ export default function LoginPage() {
           <p className="mt-2 text-sm text-muted-foreground">
             {mode === "signin"
               ? "Sign in to keep creating with Framewave."
-              : "Start with 30 free credits — no card required."}
+              : "Start with 50 free credits — no card required."}
           </p>
 
           <button

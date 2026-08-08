@@ -4,6 +4,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useCustomer, useListPlans } from "autumn-js/react";
+import { useQuery } from "@tanstack/react-query";
+import { creditsBalanceOptions } from "@/queries/credits";
 import { useColors } from "@/hooks/use-colors";
 import { useAuth } from "@/hooks/use-auth";
 import { authClient, clearToken } from "@/lib/auth";
@@ -14,9 +16,9 @@ export default function AccountScreen() {
   const { user, isAuthenticated } = useAuth();
   const { data: customer, attach, isPending } = useCustomer();
   const { data: plans } = useListPlans();
+  const { data: balance } = useQuery({ ...creditsBalanceOptions(), enabled: isAuthenticated });
 
-  const balance = customer?.balances?.credits;
-  const activePlan = customer?.subscriptions?.[0]?.planId ?? "free";
+  const activePlan = balance?.planId ?? customer?.subscriptions?.[0]?.planId ?? "free";
 
   async function onSignOut() {
     await authClient.signOut();
@@ -74,12 +76,18 @@ export default function AccountScreen() {
             <Text style={{ color: colors.mutedForeground }}>Credits remaining</Text>
             <View style={styles.rowCenterSm}>
               <Ionicons name="flash" size={16} color={colors.gold} />
-              <Text style={{ color: colors.foreground, fontSize: 20, fontWeight: "800" }}>{balance?.remaining ?? 0}</Text>
+              <Text style={{ color: colors.foreground, fontSize: 20, fontWeight: "800" }}>{balance?.total ?? 0}</Text>
             </View>
           </View>
           <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 6 }}>
+            {balance?.plan ?? 0} from plan · {balance?.bonus ?? 0} bonus &amp; purchased
+          </Text>
+          <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 4 }}>
             Plan: <Text style={{ color: colors.gold, textTransform: "capitalize" }}>{activePlan}</Text>
           </Text>
+          <Pressable onPress={() => router.push("/(tabs)/rewards")} style={{ marginTop: 12 }}>
+            <Text style={{ color: colors.gold, fontWeight: "700", fontSize: 13 }}>Earn free credits →</Text>
+          </Pressable>
         </View>
 
         {/* Plans */}
@@ -89,7 +97,7 @@ export default function AccountScreen() {
         ) : (
           (plans ?? []).map((plan) => {
             const active = plan.id === activePlan;
-            const price = plan.price ? `$${plan.price.amount / 100}/mo` : "Free";
+            const price = plan.price ? `${plan.price.amount}/mo` : "Free";
             return (
               <View key={plan.id} style={[styles.planCard, { backgroundColor: colors.card, borderColor: active ? colors.gold : colors.border }]}>
                 <View style={{ flex: 1 }}>

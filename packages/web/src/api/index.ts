@@ -6,6 +6,7 @@ import { upload } from "./routes/upload";
 import { ai } from "./routes/ai";
 import { generations } from "./routes/generations";
 import { gallery } from "./routes/gallery";
+import { credits } from "./routes/credits";
 
 // API features are oRPC procedures, one file per feature in ./routes/,
 // composed into this router — typed end-to-end via the clients
@@ -16,6 +17,7 @@ export const router = {
   ai,
   generations,
   gallery,
+  credits,
 };
 
 export type AppRouter = typeof router;

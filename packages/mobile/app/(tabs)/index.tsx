@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useCustomer } from "autumn-js/react";
+import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useColors } from "@/hooks/use-colors";
 import { useAuth } from "@/hooks/use-auth";
@@ -20,13 +20,17 @@ import { GradientButton } from "@/components/gradient-button";
 import { VideoPlayer } from "@/components/video-player";
 import {
   ASPECT_RATIOS,
-  RESOLUTIONS,
   DURATIONS,
   STYLE_PRESETS,
   CAMERA_MOTIONS,
   CATEGORIES,
+  TIERS,
   creditCost,
+  resolutionsForTier,
+  type ModelTier,
+  type Resolution,
 } from "@/constants/studio";
+import { creditsBalanceOptions } from "@/queries/credits";
 import {
   useCreateGeneration,
   useGeneration,
@@ -36,15 +40,16 @@ import {
 export default function StudioScreen() {
   const colors = useColors();
   const { isAuthenticated } = useAuth();
-  const { data: customer } = useCustomer();
-  const balance = customer?.balances?.credits?.remaining ?? 0;
+  const balanceQuery = useQuery({ ...creditsBalanceOptions(), enabled: isAuthenticated });
+  const balance = balanceQuery.data?.total ?? 0;
 
   const [prompt, setPrompt] = useState("");
   const [negative, setNegative] = useState("");
   const [style, setStyle] = useState<string | null>(null);
   const [camera, setCamera] = useState<string | null>(null);
   const [aspect, setAspect] = useState<string>("16:9");
-  const [resolution, setResolution] = useState<string>("720p");
+  const [tier, setTier] = useState<ModelTier>("standard");
+  const [resolution, setResolution] = useState<Resolution>("720p");
   const [duration, setDuration] = useState<number>(6);
   const [category, setCategory] = useState<string>("general");
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -54,7 +59,13 @@ export default function StudioScreen() {
   const enhance = useEnhancePrompt();
   const active = useGeneration(activeId);
 
-  const cost = creditCost(duration, resolution);
+  // Draft has no 4K — keep the selection legal when the tier changes.
+  const allowedResolutions = resolutionsForTier(tier);
+  useEffect(() => {
+    if (!allowedResolutions.includes(resolution)) setResolution(allowedResolutions[0]!);
+  }, [allowedResolutions, resolution]);
+
+  const cost = creditCost(tier, resolution, duration);
   const enough = balance >= cost;
 
   async function onEnhance() {
@@ -75,7 +86,8 @@ export default function StudioScreen() {
       negativePrompt: negative.trim() || undefined,
       aspectRatio: aspect as "16:9" | "9:16",
       durationSeconds: duration,
-      resolution: resolution as "720p" | "1080p",
+      resolution,
+      tier,
       stylePreset: style ?? undefined,
       cameraMotion: camera ?? undefined,
       category,
@@ -105,7 +117,9 @@ export default function StudioScreen() {
             </View>
             <View style={[styles.creditPill, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Ionicons name="flash" size={14} color={colors.gold} />
-              <Text style={[styles.creditText, { color: colors.foreground }]}>{balance}</Text>
+              <Text style={[styles.creditText, { color: colors.foreground }]}>
+                {balance.toLocaleString()}
+              </Text>
             </View>
           </View>
 
@@ -200,11 +214,26 @@ export default function StudioScreen() {
             />
           </View>
           <View style={styles.section}>
+            <Text style={[styles.label, { color: colors.foreground }]}>Quality</Text>
+            <Segmented
+              options={TIERS.map((t) => ({ value: t.value, label: t.label }))}
+              value={tier}
+              onSelect={(v) => setTier(v as ModelTier)}
+              colors={colors}
+            />
+            <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 6 }}>
+              {TIERS.find((t) => t.value === tier)?.tagline}
+            </Text>
+          </View>
+          <View style={styles.section}>
             <Text style={[styles.label, { color: colors.foreground }]}>Resolution</Text>
             <Segmented
-              options={RESOLUTIONS.map((r) => ({ value: r.value, label: r.label }))}
+              options={allowedResolutions.map((r) => ({
+                value: r,
+                label: r === "4k" ? "4K" : r,
+              }))}
               value={resolution}
-              onSelect={setResolution}
+              onSelect={(v) => setResolution(v as Resolution)}
               colors={colors}
             />
           </View>
@@ -252,7 +281,7 @@ export default function StudioScreen() {
           </View>
           {isAuthenticated && !enough && (
             <Text style={{ color: colors.destructive, fontSize: 13, marginBottom: 10 }}>
-              Not enough credits. Top up in Account.
+              Not enough credits. Claim your daily credits in Rewards or pick a cheaper quality.
             </Text>
           )}
           <GradientButton

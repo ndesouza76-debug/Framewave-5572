@@ -39,7 +39,8 @@ export const veoProvider: VideoProvider = {
     if (input.durationSeconds) config.durationSeconds = Math.min(8, Math.max(4, Math.round(input.durationSeconds / 2) * 2));
 
     const request: Record<string, unknown> = {
-      model: MODEL,
+      // The tier the user paid for decides the model.
+      model: input.model || MODEL,
       prompt: input.prompt,
       config,
     };
